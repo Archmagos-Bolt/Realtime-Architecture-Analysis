@@ -1,0 +1,22 @@
+{
+  "name": "bsc-realtime-architecture-analysis",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node app/server/index.js",
+    "run:baseline": "node runner/runScenario.js scenarios/baseline/sse.json",
+    "analyze": "node analysis/summarize.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "pg": "^8.20.0",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  },
+  "description": ""
+}
