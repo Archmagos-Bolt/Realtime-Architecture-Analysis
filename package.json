@@ -2,6 +2,7 @@
   "name": "bsc-realtime-architecture-analysis",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node app/server/index.js",
     "run:baseline": "node runner/runScenario.js scenarios/baseline/sse.json",

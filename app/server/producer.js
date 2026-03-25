@@ -1,5 +1,4 @@
 import { publish } from "./eventBus.js";
-import { createEvent } from "../shared/eventSchema.js";
 
 let sequenceNo = 0;
 let intervalHandle = null;
@@ -11,10 +10,14 @@ function makePayload(sizeBytes) {
 export function startProducer({ scenarioId, transport, eventRatePerSecond, payloadSizeBytes }) {
   const intervalMs = 1000 / eventRatePerSecond;
 
+  if (intervalHandle) {
+    clearInterval(intervalHandle);
+  }
+
   intervalHandle = setInterval(() => {
     sequenceNo += 1;
 
-    const event = createEvent({
+    const event = {
       eventId: `${scenarioId}-${sequenceNo}`,
       scenarioId,
       sequenceNo,
@@ -22,7 +25,7 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
       payload: makePayload(payloadSizeBytes),
       payloadSizeBytes,
       serverCreatedWallMs: Date.now()
-    });
+    };
 
     publish(event);
   }, intervalMs);
