@@ -1,5 +1,4 @@
 const statusEl = document.getElementById("status");
-
 const metrics = [];
 
 function setStatus(text) {
@@ -10,6 +9,22 @@ function setStatus(text) {
 
 function getClientReceiveWallMs() {
   return performance.timeOrigin + performance.now();
+}
+
+function percentile(sortedValues, p) {
+  if (sortedValues.length === 0) {
+    return null;
+  }
+  const index = (sortedValues.length - 1) * p;
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+
+  if (lower === upper) {
+    return sortedValues[lower];
+  }
+
+  const weight = index - lower;
+  return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
 }
 
 function recordEvent(event) {
@@ -28,7 +43,6 @@ function recordEvent(event) {
   };
 
   metrics.push(metric);
-
   return metric;
 }
 
@@ -36,6 +50,28 @@ window.testMetrics = {
   getAll: () => metrics,
   clear: () => {
     metrics.length = 0;
+  },
+
+  values: () => metrics.map((m) => m.e2eMs),
+  summary: () => {
+    const values = metrics.map((m) => m.e2eMs);
+    if (values.length === 0) {
+      return null;
+    }
+
+    const sorted = [...values].sort((a, b) => a - b);
+    const sum = values.reduce((a, b) => a + b, 0);
+
+    return {
+      count: values.length,
+      min: sorted[0],
+      p50: percentile(sorted, 0.50),
+      p90: percentile(sorted, 0.90),
+      p95: percentile(sorted, 0.95),
+      p99: percentile(sorted, 0.99),
+      max: sorted[sorted.length - 1],
+      mean: sum / values.length
+    };
   }
 };
 
@@ -59,22 +95,14 @@ source.onmessage = (message) => {
   console.log("Recorded metric:", metric);
 };
 
-source.onerror = () => {
-  setStatus("SSE connection error");
-};
+source.onerror = (err) => {
+  console.warn("SSE error fired", err, "readyState:", source.readyState);
 
-window.testMetrics.summary = () => {
-  const values = metrics.map((m) => m.e2eMs);
-  if (values.length === 0) {
-    return null;
+  if (source.readyState === EventSource.CONNECTING) {
+    setStatus("SSE reconnecting...");
+  } else if (source.readyState === EventSource.CLOSED) {
+    setStatus("SSE closed");
+  } else {
+    setStatus("SSE error");
   }
-
-  const sum = values.reduce((a, b) => a + b, 0);
-
-  return {
-    count: values.length,
-    min: Math.min(...values),
-    max: Math.max(...values),
-    mean: sum / values.length
-  };
 };
