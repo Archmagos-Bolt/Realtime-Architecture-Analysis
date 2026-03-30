@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node app/server/index.js",
+    "run:scenario": "node runner/runScenario.js",
     "run:baseline": "node runner/runScenario.js scenarios/baseline/sse.json",
     "analyze": "node analysis/summarize.js"
   },

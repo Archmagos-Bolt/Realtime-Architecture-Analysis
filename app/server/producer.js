@@ -1,4 +1,5 @@
 import { publish } from "./eventBus.js";
+import { performance } from "perf_hooks";
 
 let sequenceNo = 0;
 let intervalHandle = null;
@@ -34,7 +35,7 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
       transport,
       payload: makePayload(payloadSizeBytes),
       payloadSizeBytes,
-      serverCreatedWallMs: Date.now()
+      serverCreatedWallMs: performance.timeOrigin + performance.now()
     };
 
     publish(event);
