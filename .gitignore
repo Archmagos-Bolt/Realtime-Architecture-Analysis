@@ -5,3 +5,4 @@ results/plots/*
 .env
 playwright-report/
 test-results/
+results/runs/*
