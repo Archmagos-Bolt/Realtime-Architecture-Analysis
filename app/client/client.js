@@ -37,6 +37,7 @@ function recordEvent(event) {
   const metric = {
     eventId: event.eventId,
     scenarioId: event.scenarioId,
+    clientId,
     sequenceNo: event.sequenceNo,
     transport: event.transport,
     payloadSizeBytes: event.payloadSizeBytes,
@@ -77,23 +78,39 @@ window.testMetrics = {
     };
   },
   download: () => {
-  const blob = new Blob(
-        [JSON.stringify(metrics, null, 2)],
-        { type: "application/json" }
-      );
+    if (metrics.length === 0) {
+      console.warn("No metrics to download.");
+      return;
+    }
+    const blob = new Blob(
+      [JSON.stringify(metrics, null, 2)],
+      { type: "application/json" }
+    );
 
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "metrics.json";
-      a.click();
-      URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+
+    const firstMetric = metrics[0];
+    const scenarioId = firstMetric?.scenarioId ?? "unknown-scenario";
+    const transport = firstMetric?.transport ?? "unknown-transport";
+    const clientId = firstMetric?.clientId ?? "unknown-client";
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+    a.download = `${scenarioId}-${transport}-${clientId}-${timestamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 };
 
 function getTransportFromQuery() {
   const params = new URLSearchParams(window.location.search);
   return params.get("transport") || "sse";
+}
+
+function getClientIdFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("clientId") || "client-1";
 }
 
 function connectTransport(transport) {
@@ -109,7 +126,7 @@ function connectTransport(transport) {
       console.log("Recorded metric:", metric);
 
       setStatus(
-        `Transport=${transport} | event #${event.sequenceNo} | e2e=${metric.e2eMs.toFixed(3)} ms`
+        `Client=${clientId} | Transport=${transport} | event #${event.sequenceNo} | e2e=${metric.e2eMs.toFixed(3)} ms`
       );
     },
     onError: (err, readyState) => {
@@ -137,6 +154,7 @@ function connectTransport(transport) {
 }
 
 const transport = getTransportFromQuery();
+const clientId = getClientIdFromQuery();
 
 setStatus(`Connecting using ${transport}...`);
 console.log(`Connecting using transport: ${transport}`);
