@@ -4,6 +4,14 @@ import { connectPolling } from "./transports/pollingClient.js";
 const statusEl = document.getElementById("status");
 const metrics = [];
 
+const testState = {
+  connected: false,
+  transport: null,
+  clientId: null
+};
+
+window.testState = testState;
+
 function setStatus(text) {
   if (statusEl) {
     statusEl.textContent = text;
@@ -32,7 +40,8 @@ function percentile(sortedValues, p) {
 
 function recordEvent(event) {
   const clientReceivedWallMs = getClientReceiveWallMs();
-  const e2eMs = clientReceivedWallMs - event.serverCreatedWallMs;
+  const rawE2eMs = clientReceivedWallMs - event.serverCreatedWallMs;
+  const e2eMs = Math.max(0, rawE2eMs);
 
   const metric = {
     eventId: event.eventId,
@@ -43,6 +52,7 @@ function recordEvent(event) {
     payloadSizeBytes: event.payloadSizeBytes,
     serverCreatedWallMs: event.serverCreatedWallMs,
     clientReceivedWallMs,
+    rawE2eMs,
     e2eMs
   };
 
@@ -82,8 +92,12 @@ window.testMetrics = {
       console.warn("No metrics to download.");
       return;
     }
+    const exportData = {
+      summary: window.testMetrics.summary(),
+      metrics
+    };
     const blob = new Blob(
-      [JSON.stringify(metrics, null, 2)],
+      [JSON.stringify(exportData, null, 2)],
       { type: "application/json" }
     );
 
@@ -95,7 +109,7 @@ window.testMetrics = {
     const scenarioId = firstMetric?.scenarioId ?? "unknown-scenario";
     const transport = firstMetric?.transport ?? "unknown-transport";
     const clientId = firstMetric?.clientId ?? "unknown-client";
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const timestamp = new Date().toLocaleString("sv-SE").replace(/[: ]/g, "-");
 
     a.download = `${scenarioId}-${transport}-${clientId}-${timestamp}.json`;
     a.click();
@@ -116,17 +130,18 @@ function getClientIdFromQuery() {
 function connectTransport(transport) {
   const handlers = {
     onOpen: () => {
+      testState.connected = true;
       console.log(`${transport} open`);
       setStatus(`${transport} connected. Waiting for events...`);
     },
     onEvent: (event) => {
       const metric = recordEvent(event);
 
-      console.log("Received event:", event);
-      console.log("Recorded metric:", metric);
+      // console.log("Received event:", event);
+      // console.log("Recorded metric:", metric);
 
       setStatus(
-        `Client=${clientId} | Transport=${transport} | event #${event.sequenceNo} | e2e=${metric.e2eMs.toFixed(3)} ms`
+        `Client=${clientId} | Scenario=${event.scenarioId} | event #${event.sequenceNo} | e2e=${metric.e2eMs.toFixed(3)} ms`
       );
     },
     onError: (err, readyState) => {
@@ -155,6 +170,8 @@ function connectTransport(transport) {
 
 const transport = getTransportFromQuery();
 const clientId = getClientIdFromQuery();
+testState.transport = transport;
+testState.clientId = clientId;
 
 setStatus(`Connecting using ${transport}...`);
 console.log(`Connecting using transport: ${transport}`);
