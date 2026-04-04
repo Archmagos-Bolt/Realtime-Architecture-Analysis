@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node app/server/index.js",
     "run:scenario": "node runner/runScenario.js",
-    "run:baseline": "node runner/runScenario.js scenarios/baseline/sse.json",
+    "clean:results": "node runner/cleanResults.js",
     "analyze": "node analysis/summarize.js"
   },
   "keywords": [],
