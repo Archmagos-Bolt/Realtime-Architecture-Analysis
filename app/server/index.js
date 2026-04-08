@@ -2,9 +2,12 @@ import express from "express";
 import http from "http";
 import controlRoutes from "./routes/control.js";
 import { subscribe } from "./eventBus.js";
+import { WebSocketServer, WebSocket } from "ws";
 
 const app = express();
 const server = http.createServer(app);
+const wss = new WebSocketServer({ server, path: "/events/ws" });
+const wsClients = new Set();
 
 app.use(express.json());
 app.use(express.static("app/client"));
@@ -39,11 +42,37 @@ app.get("/events/sse", (req, res) => {
   });
 });
 
+wss.on("connection", (socket) => {
+  console.log("WebSocket client connected");
+  wsClients.add(socket);
+
+  socket.on("close", () => {
+    console.log("WebSocket client disconnected");
+    wsClients.delete(socket);
+  });
+
+  socket.on("error", (err) => {
+    console.error("WebSocket client error:", err);
+  });
+});
+
 subscribe((event) => {
   const data = `data: ${JSON.stringify(event)}\n\n`;
 
   for (const client of sseClients) {
     client.write(data);
+  }
+  
+  const wsData = JSON.stringify(event);
+
+  for (const socket of wsClients) {
+    try {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(wsData);
+      }
+    } catch (err) {
+      console.error("Failed to send WebSocket event:", err);
+    }
   }
 });
 

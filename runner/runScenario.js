@@ -70,7 +70,7 @@ async function main() {
   await mkdir(rawDir, { recursive: true });
   await mkdir(summaryDir, { recursive: true });
 
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: false });
   const context = await browser.newContext();
 
   const pages = [];

@@ -1,5 +1,6 @@
 export function connectWebSocket({ onOpen, onEvent, onError }) {
-  const socket = new WebSocket("ws://localhost:3000/events/ws");
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(`${protocol}//${window.location.host}/events/ws`);
 
   socket.onopen = () => {
     onOpen?.();

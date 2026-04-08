@@ -151,7 +151,7 @@ function connectTransport(transport) {
       } else if (transport === "sse" && readyState === EventSource.CLOSED) {
         setStatus("SSE closed");
       } else {
-        setStatus(`${transport} error`);
+        setStatus(`${transport} error (readyState=${readyState ?? "unknown"})`);
       }
     }
   };
