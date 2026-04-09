@@ -8,6 +8,12 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/events/ws" });
 const wsClients = new Set();
+const eventBuffer = [];
+const MAX_BUFFER_SIZE = 10000;
+
+export function clearEventBuffer() {
+  eventBuffer.length = 0;
+}
 
 app.use(express.json());
 app.use(express.static("app/client"));
@@ -56,8 +62,24 @@ wss.on("connection", (socket) => {
   });
 });
 
+app.get("/events/polling", (req, res) => {
+  const afterSeq = Number(req.query.afterSeq ?? 0);
+
+  if (Number.isNaN(afterSeq)) {
+    return res.status(400).json({ error: "afterSeq must be a number" });
+  }
+
+  const events = eventBuffer.filter((event) => event.sequenceNo > afterSeq);
+  res.json(events);
+});
+
 subscribe((event) => {
   const data = `data: ${JSON.stringify(event)}\n\n`;
+  eventBuffer.push(event);
+
+  if (eventBuffer.length > MAX_BUFFER_SIZE) {
+    eventBuffer.shift();
+  }
 
   for (const client of sseClients) {
     client.write(data);

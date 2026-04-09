@@ -1,5 +1,6 @@
 import express from "express";
 import { startProducer, stopProducer, getProducerState } from "../producer.js";
+import { clearEventBuffer } from "../index.js";
 
 const router = express.Router();
 
@@ -20,6 +21,7 @@ router.post("/start", (req, res) => {
       error: "Missing required fields: scenarioId, transport, eventRatePerSecond, payloadSizeBytes"
     });
   }
+  clearEventBuffer();
   const result = startProducer({
     scenarioId,
     transport,
@@ -31,6 +33,7 @@ router.post("/start", (req, res) => {
 });
 
 router.post("/stop", (_req, res) => {
+  clearEventBuffer();
   const result = stopProducer();
   res.json(result);
 });

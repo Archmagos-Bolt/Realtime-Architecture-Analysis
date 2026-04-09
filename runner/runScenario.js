@@ -51,7 +51,7 @@ let browser;
 
 async function main() {
   const scenarioPath = process.argv[2];
-
+  const headed = process.argv.includes("--headed");
   if (!scenarioPath) {
     console.error("Usage: node runner/runScenario.js <scenario.json>");
     process.exit(1);
@@ -70,7 +70,7 @@ async function main() {
   await mkdir(rawDir, { recursive: true });
   await mkdir(summaryDir, { recursive: true });
 
-  browser = await chromium.launch({ headless: false });
+  browser = await chromium.launch({ headless: !headed });
   const context = await browser.newContext();
 
   const pages = [];
