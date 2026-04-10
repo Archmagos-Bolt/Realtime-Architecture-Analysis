@@ -8,7 +8,8 @@
     "run:scenario": "node runner/runScenario.js",
     "run:batch": "node runner/runBatch.js",
     "clean:results": "node runner/cleanResults.js",
-    "analyze": "node analysis/summary.js"
+    "analyze": "node analysis/summary.js",
+    "group:summaries": "node analysis/groupSummaries.js"
   },
   "keywords": [],
   "author": "",
