@@ -1,8 +1,8 @@
 node_modules/
 results/raw/*
 results/summaries/*
-results/plots/*
+results/aggregated/*
+results/runs/*
 .env
 playwright-report/
 test-results/
-results/runs/*
