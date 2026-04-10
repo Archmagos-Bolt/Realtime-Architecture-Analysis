@@ -3,6 +3,7 @@ import http from "http";
 import controlRoutes from "./routes/control.js";
 import { subscribe } from "./eventBus.js";
 import { WebSocketServer, WebSocket } from "ws";
+import { performance } from "perf_hooks";
 
 const app = express();
 const server = http.createServer(app);
@@ -24,6 +25,7 @@ const sseClients = new Set();
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
+
 
 app.get("/events/sse", (req, res) => {
   console.log("SSE client connected");
