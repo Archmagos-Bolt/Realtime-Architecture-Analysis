@@ -1,0 +1,10 @@
+{
+  "scenarioId": "baseline_websocket_6clients_10rps_1kb",
+  "transport": "websocket",
+  "clientCount": 6,
+  "eventRatePerSecond": 10,
+  "payloadSizeBytes": 1024,
+  "warmupMs": 5000,
+  "measurementMs": 30000,
+  "repetitions": 3
+}

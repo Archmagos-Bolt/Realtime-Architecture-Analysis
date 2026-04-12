@@ -4,6 +4,8 @@ import controlRoutes from "./routes/control.js";
 import { subscribe } from "./eventBus.js";
 import { WebSocketServer, WebSocket } from "ws";
 import { performance } from "perf_hooks";
+import fs from "fs/promises";
+import { db, connectDb } from "./db/pg.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -101,6 +103,11 @@ subscribe((event) => {
 });
 
 const PORT = 3000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  try {
+    await connectDb();
+  } catch (err) {
+    console.error("Failed to connect to DB:", err);
+  }
 });

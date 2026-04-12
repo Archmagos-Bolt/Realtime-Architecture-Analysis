@@ -1,5 +1,6 @@
 import { publish } from "./eventBus.js";
 import { performance } from "perf_hooks";
+import { insertSyncEvent } from "./db/pg.js";
 
 let sequenceNo = 0;
 let intervalHandle = null;
@@ -25,26 +26,34 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
     clearInterval(intervalHandle);
   }
 
-  intervalHandle = setInterval(() => {
-    sequenceNo += 1;
+  intervalHandle = setInterval(async () => {
+    try {
+      sequenceNo += 1;
 
-    const event = {
-      eventId: `${scenarioId}-${sequenceNo}`,
-      scenarioId,
-      sequenceNo,
-      transport,
-      payload: makePayload(payloadSizeBytes),
-      payloadSizeBytes,
-      serverCreatedWallMs: performance.timeOrigin + performance.now()
-    };
+      const payload = makePayload(payloadSizeBytes);
 
-    publish(event);
+      const inserted = await insertSyncEvent({
+        scenarioId,
+        sequenceNo,
+        payload,
+        payloadSizeBytes
+      });
+
+      const event = {
+        eventId: `${inserted.scenario_id}-${inserted.sequence_no}`,
+        scenarioId: inserted.scenario_id,
+        sequenceNo: inserted.sequence_no,
+        transport,
+        payload: inserted.payload,
+        payloadSizeBytes: inserted.payload_size_bytes,
+        serverCreatedWallMs: new Date(inserted.created_at).getTime()
+      };
+
+      publish(event);
+    } catch (err) {
+      console.error("Producer insert/publish failed:", err);
+    }
   }, intervalMs);
-
-  return {
-    running: true,
-    scenario: currentScenario
-  };
 }
 
 export function stopProducer() {

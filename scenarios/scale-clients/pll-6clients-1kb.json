@@ -1,0 +1,10 @@
+{
+  "scenarioId": "baseline_polling_6clients_10rps_1kb",
+  "transport": "polling",
+  "clientCount": 6,
+  "eventRatePerSecond": 10,
+  "payloadSizeBytes": 1024,
+  "warmupMs": 5000,
+  "measurementMs": 30000,
+  "repetitions": 3
+}

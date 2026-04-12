@@ -1,6 +1,7 @@
 import fs, { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { chromium } from "playwright";
+import { db, connectDb, clearSyncEvents } from "../app/server/db/pg.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,6 +51,9 @@ function summarizeMetrics(metrics) {
 let browser;
 
 async function main() {
+  await connectDb();
+  await clearSyncEvents();
+  console.log("sync_events cleared.");
   const scenarioPath = process.argv[2];
   const headed = process.argv.includes("--headed");
   if (!scenarioPath) {
@@ -215,8 +219,9 @@ async function main() {
   }
   finally {
     if (browser) {
-      await browser.close();
+      await browser.close().catch(() => {});
     }
+    await db.end().catch(() => {});
   }
 }
 
