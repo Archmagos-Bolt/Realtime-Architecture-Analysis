@@ -51,21 +51,21 @@ function summarizeMetrics(metrics) {
 let browser;
 
 async function main() {
-  await connectDb();
-  await clearSyncEvents();
-  console.log("sync_events cleared.");
   const scenarioPath = process.argv[2];
-  const headed = process.argv.includes("--headed");
   if (!scenarioPath) {
     console.error("Usage: node runner/runScenario.js <scenario.json>");
     process.exit(1);
   }
+  const headed = process.argv.includes("--headed");
+  await connectDb();
+  await clearSyncEvents();
+  console.log("sync_events cleared.");
 
   const scenario = JSON.parse(await fs.readFile(scenarioPath, "utf-8"));
   console.log("Loaded scenario:", scenario);
 
   const startedAt = new Date().toLocaleString();
-  const safeTimestamp = startedAt.toLocaleString("sv-SE").replace(/[: ]/g, "-");
+  const safeTimestamp = new Date().toLocaleString("sv-SE").replace(/[: ]/g, "-");
   const runDir = "results/runs";
   const rawDir = "results/raw";
   const summaryDir = "results/summaries";
@@ -90,8 +90,8 @@ async function main() {
       );
 
       await page.waitForFunction(() => window.testState?.connected === true);
-      pages.push({ page, clientId });
       console.log(`Connected ${clientId}`);
+      pages.push({ page, clientId });
     }
     console.log("All clients connected.");
 
@@ -142,7 +142,7 @@ async function main() {
     }
 
     const stopResult = await stopResponse.json();
-    const finishedAt = new Date().toLocaleString("sv-SE").replace(/[: ]/g, "-");
+    const finishedAt = new Date().toLocaleString();
 
     const perClientResults = [];
     console.log("Collecting metrics from clients.");

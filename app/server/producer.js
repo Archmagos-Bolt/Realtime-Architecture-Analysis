@@ -35,6 +35,7 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
       const inserted = await insertSyncEvent({
         scenarioId,
         sequenceNo,
+        transport,
         payload,
         payloadSizeBytes
       });
@@ -49,11 +50,17 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
         serverCreatedWallMs: new Date(inserted.created_at).getTime()
       };
 
+    if (transport !== "dbtriggered") {
       publish(event);
+    }
     } catch (err) {
       console.error("Producer insert/publish failed:", err);
     }
   }, intervalMs);
+    return {
+    running: true,
+    scenario: currentScenario
+  };
 }
 
 export function stopProducer() {

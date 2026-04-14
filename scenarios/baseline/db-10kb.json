@@ -1,0 +1,10 @@
+{
+  "scenarioId": "baseline_dbtriggered_10clients_10rps_10kb",
+  "transport": "dbtriggered",
+  "clientCount": 10,
+  "eventRatePerSecond": 10,
+  "payloadSizeBytes": 10240,
+  "warmupMs": 5000,
+  "measurementMs": 30000,
+  "repetitions": 3
+}

@@ -18,16 +18,17 @@ export async function connectDb() {
 export async function insertSyncEvent({
   scenarioId,
   sequenceNo,
+  transport,
   payload,
   payloadSizeBytes
 }) {
   const result = await db.query(
     `
-    INSERT INTO sync_events (scenario_id, sequence_no, payload, payload_size_bytes)
-    VALUES ($1, $2, $3, $4)
-    RETURNING id, scenario_id, sequence_no, payload, payload_size_bytes, created_at
+    INSERT INTO sync_events (scenario_id, sequence_no, transport, payload, payload_size_bytes)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, scenario_id, sequence_no, transport, payload, payload_size_bytes, created_at
     `,
-    [scenarioId, sequenceNo, payload, payloadSizeBytes]
+    [scenarioId, sequenceNo, transport, payload, payloadSizeBytes]
   );
 
   return result.rows[0];

@@ -3,16 +3,20 @@ import http from "http";
 import controlRoutes from "./routes/control.js";
 import { subscribe } from "./eventBus.js";
 import { WebSocketServer, WebSocket } from "ws";
-import { performance } from "perf_hooks";
-import fs from "fs/promises";
-import { db, connectDb } from "./db/pg.js";
+import { connectDb } from "./db/pg.js";
+import { startDbTriggeredListener } from "./db/dbTriggeredListener.js";
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: "/events/ws" });
+const wss = new WebSocketServer({ noServer: true });
 const wsClients = new Set();
 const eventBuffer = [];
 const MAX_BUFFER_SIZE = 10000;
+
+const sseClients = new Set();
+
+const dbTriggeredWss = new WebSocketServer({ noServer: true });
+const dbTriggeredWsClients = new Set();
 
 export function clearEventBuffer() {
   eventBuffer.length = 0;
@@ -22,7 +26,6 @@ app.use(express.json());
 app.use(express.static("app/client"));
 app.use("/control", controlRoutes);
 
-const sseClients = new Set();
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -66,6 +69,40 @@ wss.on("connection", (socket) => {
   });
 });
 
+dbTriggeredWss.on("connection", (socket) => {
+  console.log("DB-triggered WebSocket client connected");
+  dbTriggeredWsClients.add(socket);
+
+  socket.on("close", () => {
+    console.log("DB-triggered WebSocket client disconnected");
+    dbTriggeredWsClients.delete(socket);
+  });
+
+  socket.on("error", (err) => {
+    console.error("DB-triggered WebSocket client error:", err);
+  });
+});
+
+server.on("upgrade", (req, socket, head) => {
+  const { url } = req;
+
+  if (url === "/events/ws") {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit("connection", ws, req);
+    });
+    return;
+  }
+
+  if (url === "/events/dbtriggered") {
+    dbTriggeredWss.handleUpgrade(req, socket, head, (ws) => {
+      dbTriggeredWss.emit("connection", ws, req);
+    });
+    return;
+  }
+
+  socket.destroy();
+});
+
 app.get("/events/polling", (req, res) => {
   const afterSeq = Number(req.query.afterSeq ?? 0);
 
@@ -85,19 +122,36 @@ subscribe((event) => {
     eventBuffer.shift();
   }
 
+  if (event.transport === "dbtriggered") {
+    console.log("Sending DB-triggered event to WS clients:", dbTriggeredWsClients.size);
+    const dbTriggeredWsData = JSON.stringify(event);
+
+    for (const socket of dbTriggeredWsClients) {
+      try {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(dbTriggeredWsData);
+        }
+      } catch (err) {
+        console.error("Failed to send DB-triggered WebSocket event:", err);
+      }
+    }
+  }
+
   for (const client of sseClients) {
     client.write(data);
   }
   
-  const wsData = JSON.stringify(event);
+  if (event.transport !== "dbtriggered") {
+    const wsData = JSON.stringify(event);
 
-  for (const socket of wsClients) {
-    try {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(wsData);
+    for (const socket of wsClients) {
+      try {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(wsData);
+        }
+      } catch (err) {
+        console.error("Failed to send WebSocket event:", err);
       }
-    } catch (err) {
-      console.error("Failed to send WebSocket event:", err);
     }
   }
 });
@@ -107,6 +161,7 @@ server.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
   try {
     await connectDb();
+    await startDbTriggeredListener();
   } catch (err) {
     console.error("Failed to connect to DB:", err);
   }
