@@ -18,8 +18,23 @@ const sseClients = new Set();
 const dbTriggeredWss = new WebSocketServer({ noServer: true });
 const dbTriggeredWsClients = new Set();
 
+const pendingLongPolls = new Set();
+const LONG_POLL_TIMEOUT_MS = 25000;
+
 export function clearEventBuffer() {
   eventBuffer.length = 0;
+}
+
+function resolveLongPolls() {
+  for (const poll of [...pendingLongPolls]) {
+    const events = eventBuffer.filter((event) => event.sequenceNo > poll.afterSeq);
+
+    if (events.length > 0) {
+      clearTimeout(poll.timeoutHandle);
+      pendingLongPolls.delete(poll);
+      poll.res.json(events);
+    }
+  }
 }
 
 app.use(express.json());
@@ -114,6 +129,36 @@ app.get("/events/polling", (req, res) => {
   res.json(events);
 });
 
+app.get("/events/longpoll", (req, res) => {
+  const afterSeq = Number(req.query.afterSeq ?? 0);
+
+  if (Number.isNaN(afterSeq)) {
+    return res.status(400).json({ error: "afterSeq must be a number" });
+  }
+
+  const events = eventBuffer.filter((event) => event.sequenceNo > afterSeq);
+
+  if (events.length > 0) {
+    return res.json(events);
+  }
+
+  const poll = {
+    afterSeq,
+    res,
+    timeoutHandle: setTimeout(() => {
+      pendingLongPolls.delete(poll);
+      res.json([]);
+    }, LONG_POLL_TIMEOUT_MS)
+  };
+
+  pendingLongPolls.add(poll);
+
+  req.on("close", () => {
+    clearTimeout(poll.timeoutHandle);
+    pendingLongPolls.delete(poll);
+  });
+});
+
 subscribe((event) => {
   const data = `data: ${JSON.stringify(event)}\n\n`;
   eventBuffer.push(event);
@@ -121,6 +166,8 @@ subscribe((event) => {
   if (eventBuffer.length > MAX_BUFFER_SIZE) {
     eventBuffer.shift();
   }
+    
+  resolveLongPolls();
 
   if (event.transport === "dbtriggered") {
     console.log("Sending DB-triggered event to WS clients:", dbTriggeredWsClients.size);
@@ -140,7 +187,7 @@ subscribe((event) => {
   for (const client of sseClients) {
     client.write(data);
   }
-  
+
   if (event.transport !== "dbtriggered") {
     const wsData = JSON.stringify(event);
 
