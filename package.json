@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node app/server/index.js",
+    "run:origins": "node runner/startOrigin.js",
     "run:scenario": "node runner/runScenario.js",
     "run:batch": "node runner/runBatch.js",
     "clean:results": "node runner/cleanResults.js",
@@ -20,6 +21,7 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "playwright": "^1.58.2"
   },
   "description": ""

@@ -1,5 +1,15 @@
+function getScenarioIdFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("scenarioId") || "";
+}
+
 export function connectSSE({ onOpen, onEvent, onError }) {
-  const source = new EventSource("/events/sse");
+  const scenarioId = getScenarioIdFromQuery();
+  let lastSeq = 0;
+
+  const source = new EventSource(
+    `/events/sse?scenarioId=${encodeURIComponent(scenarioId)}&afterSeq=${ lastSeq }`
+  );
 
   source.onopen = () => {
     onOpen?.();
@@ -8,6 +18,7 @@ export function connectSSE({ onOpen, onEvent, onError }) {
   source.onmessage = (message) => {
     const event = JSON.parse(message.data);
     onEvent?.(event);
+    lastSeq = Math.max(lastSeq, event.sequenceNo);
   };
 
   source.onerror = (err) => {

@@ -1,5 +1,4 @@
 import { publish } from "./eventBus.js";
-import { performance } from "perf_hooks";
 import { insertSyncEvent } from "./db/pg.js";
 
 let sequenceNo = 0;

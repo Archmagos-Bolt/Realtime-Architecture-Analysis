@@ -2,6 +2,10 @@ import fs from "fs/promises";
 import path from "path";
 import { spawn } from "child_process";
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function runNodeCommand(args) {
   return new Promise((resolve, reject) => {
     const child = spawn("node", args, {
@@ -53,6 +57,11 @@ async function main() {
   }
 
   console.log("\nBatch complete.");
+  for (const scenarioFile of scenarioFiles) {
+    console.log(`\n=== Running ${scenarioFile} ===\n`);
+    await runNodeCommand(["runner/runScenario.js", scenarioFile]);
+    await sleep(1500);
+  }
 }
 
 main().catch((err) => {

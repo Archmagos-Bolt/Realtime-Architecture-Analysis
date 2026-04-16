@@ -6,10 +6,7 @@ BEGIN
     json_build_object(
       'scenarioId', NEW.scenario_id,
       'sequenceNo', NEW.sequence_no,
-      'transport', NEW.transport,
-      'payload', NEW.payload,
-      'payloadSizeBytes', NEW.payload_size_bytes,
-      'createdAt', NEW.created_at
+      'transport', NEW.transport
     )::text
   );
 

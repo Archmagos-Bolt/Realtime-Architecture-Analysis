@@ -2,6 +2,7 @@ import fs, { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { chromium } from "playwright";
 import { db, connectDb, clearSyncEvents } from "../app/server/db/pg.js";
+import { startOrigins, stopOrigins } from "./startOrigin.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,6 +51,14 @@ function summarizeMetrics(metrics) {
 
 let browser;
 
+function getRequiredOriginCount(clientCount) {
+  return Math.ceil(clientCount / 5);
+}
+
+function buildBaseUrls({ startPort = 3000, count = 1 }) {
+  return Array.from({ length: count }, (_, i) => `http://localhost:${startPort + i}`);
+}
+
 async function main() {
   const scenarioPath = process.argv[2];
   if (!scenarioPath) {
@@ -63,6 +72,16 @@ async function main() {
 
   const scenario = JSON.parse(await fs.readFile(scenarioPath, "utf-8"));
   console.log("Loaded scenario:", scenario);
+
+  const startPort = 3000;
+  const originCount = getRequiredOriginCount(scenario.clientCount);
+  const baseUrls = buildBaseUrls({ startPort, count: originCount });
+  const controlBaseUrl = baseUrls[0];
+
+  console.log(`Using ${originCount} origin(s):`, baseUrls);
+
+  const serverChildren = startOrigins({ startPort, count: originCount });
+  await sleep(3000);
 
   const startedAt = new Date().toLocaleString();
   const safeTimestamp = new Date().toLocaleString("sv-SE").replace(/[: ]/g, "-");
@@ -83,9 +102,10 @@ async function main() {
     for (let i = 1; i <= scenario.clientCount; i += 1) {
       const clientId = `client-${i}`;
       const page = await context.newPage();
+      const baseUrl = baseUrls[(i - 1) % baseUrls.length];
 
       await page.goto(
-        `http://localhost:3000/?transport=${scenario.transport}&clientId=${clientId}`,
+        `${baseUrl}/?transport=${scenario.transport}&clientId=${clientId}&scenarioId=${scenario.scenarioId}`,
         { waitUntil: "domcontentloaded" }
       );
 
@@ -107,7 +127,7 @@ async function main() {
     }
 
     console.log("Starting measured run.");
-    const startResponse = await fetch("http://localhost:3000/control/start", {
+    const startResponse = await fetch(`${controlBaseUrl}/control/start`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -131,7 +151,7 @@ async function main() {
 
     await sleep(scenario.measurementMs);
 
-    const stopResponse = await fetch("http://localhost:3000/control/stop", {
+    const stopResponse = await fetch(`${controlBaseUrl}/control/stop`, {
       method: "POST"
     });
 
@@ -222,6 +242,7 @@ async function main() {
       await browser.close().catch(() => {});
     }
     await db.end().catch(() => {});
+    stopOrigins(serverChildren);
   }
 }
 

@@ -1,15 +1,22 @@
+function getScenarioIdFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("scenarioId") || "";
+}
+
 export function connectLongPolling({ onOpen, onEvent, onError }) {
   let closed = false;
   let lastSeq = 0;
+  const scenarioId = getScenarioIdFromQuery();
 
   onOpen?.();
 
   async function poll() {
     while (!closed) {
       try {
-        const response = await fetch(`/events/longpoll?afterSeq=${lastSeq}`, {
-          cache: "no-store"
-        });
+        const response = await fetch(
+          `/events/longpoll?scenarioId=${encodeURIComponent(scenarioId)}&afterSeq=${lastSeq}`,
+          { cache: "no-store" }
+        );
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);

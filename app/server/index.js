@@ -3,7 +3,7 @@ import http from "http";
 import controlRoutes from "./routes/control.js";
 import { subscribe } from "./eventBus.js";
 import { WebSocketServer, WebSocket } from "ws";
-import { connectDb } from "./db/pg.js";
+import { connectDb, getSyncEventsAfter } from "./db/pg.js";
 import { startDbTriggeredListener } from "./db/dbTriggeredListener.js";
 
 const app = express();
@@ -47,8 +47,19 @@ app.get("/health", (_req, res) => {
 });
 
 
-app.get("/events/sse", (req, res) => {
+app.get("/events/sse", async (req, res) => {
   console.log("SSE client connected");
+
+  const afterSeq = Number(req.query.afterSeq ?? 0);
+  const scenarioId = String(req.query.scenarioId ?? "");
+
+  if (Number.isNaN(afterSeq)) {
+    return res.status(400).json({ error: "afterSeq must be a number" });
+  }
+
+  if (!scenarioId) {
+    return res.status(400).json({ error: "scenarioId is required" });
+  }
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -57,16 +68,30 @@ app.get("/events/sse", (req, res) => {
   res.flushHeaders?.();
   res.write(": connected\n\n");
 
+  try {
+    const initialEvents = await getSyncEventsAfter({ scenarioId, afterSeq });
+
+    for (const event of initialEvents) {
+      if (event.transport === "sse") {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      }
+    }
+  } catch (err) {
+    console.error("Initial SSE DB query failed:", err);
+    res.write(`event: error\ndata: ${JSON.stringify({ error: "Initial SSE load failed" })}\n\n`);
+  }
+
   const heartbeat = setInterval(() => {
     res.write(": heartbeat\n\n");
   }, 15000);
 
-  sseClients.add(res);
+  const client = { res, scenarioId };
+  sseClients.add(client);
 
   req.on("close", () => {
     console.log("SSE client disconnected");
     clearInterval(heartbeat);
-    sseClients.delete(res);
+    sseClients.delete(client);
   });
 });
 
@@ -118,45 +143,61 @@ server.on("upgrade", (req, socket, head) => {
   socket.destroy();
 });
 
-app.get("/events/polling", (req, res) => {
+app.get("/events/polling", async (req, res) => {
   const afterSeq = Number(req.query.afterSeq ?? 0);
+  const scenarioId = String(req.query.scenarioId ?? "");
 
   if (Number.isNaN(afterSeq)) {
     return res.status(400).json({ error: "afterSeq must be a number" });
   }
 
-  const events = eventBuffer.filter((event) => event.sequenceNo > afterSeq);
-  res.json(events);
+  if (!scenarioId) {
+    return res.status(400).json({ error: "scenarioId is required" });
+  }
+
+  try {
+    const events = await getSyncEventsAfter({ scenarioId, afterSeq });
+    res.json(events);
+  } catch (err) {
+    console.error("Polling DB query failed:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-app.get("/events/longpoll", (req, res) => {
+app.get("/events/longpoll", async (req, res) => {
   const afterSeq = Number(req.query.afterSeq ?? 0);
+  const scenarioId = String(req.query.scenarioId ?? "");
 
   if (Number.isNaN(afterSeq)) {
     return res.status(400).json({ error: "afterSeq must be a number" });
   }
 
-  const events = eventBuffer.filter((event) => event.sequenceNo > afterSeq);
-
-  if (events.length > 0) {
-    return res.json(events);
+  if (!scenarioId) {
+    return res.status(400).json({ error: "scenarioId is required" });
   }
 
-  const poll = {
-    afterSeq,
-    res,
-    timeoutHandle: setTimeout(() => {
-      pendingLongPolls.delete(poll);
-      res.json([]);
-    }, LONG_POLL_TIMEOUT_MS)
-  };
+  const deadline = Date.now() + LONG_POLL_TIMEOUT_MS;
 
-  pendingLongPolls.add(poll);
+  async function tryRespond() {
+    try {
+      const events = await getSyncEventsAfter({ scenarioId, afterSeq });
 
-  req.on("close", () => {
-    clearTimeout(poll.timeoutHandle);
-    pendingLongPolls.delete(poll);
-  });
+      if (events.length > 0) {
+        return res.json(events);
+      }
+
+      if (Date.now() >= deadline) {
+        return res.json([]);
+      }
+
+      setTimeout(tryRespond, 250);
+    } catch (err) {
+      console.error("Long polling DB query failed:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  tryRespond();
 });
 
 subscribe((event) => {
@@ -170,7 +211,6 @@ subscribe((event) => {
   resolveLongPolls();
 
   if (event.transport === "dbtriggered") {
-    console.log("Sending DB-triggered event to WS clients:", dbTriggeredWsClients.size);
     const dbTriggeredWsData = JSON.stringify(event);
 
     for (const socket of dbTriggeredWsClients) {
@@ -185,7 +225,9 @@ subscribe((event) => {
   }
 
   for (const client of sseClients) {
-    client.write(data);
+    if (client.scenarioId === event.scenarioId && event.transport === "sse") {
+      client.res.write(data);
+    }
   }
 
   if (event.transport !== "dbtriggered") {
@@ -203,7 +245,7 @@ subscribe((event) => {
   }
 });
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 server.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
   try {

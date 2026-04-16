@@ -1,5 +1,6 @@
 import pg from "pg";
 import { publish } from "../eventBus.js";
+import { getSyncEventByScenarioAndSeq } from "./pg.js";
 
 const { Client } = pg;
 
@@ -21,22 +22,23 @@ export async function startDbTriggeredListener() {
   await listener.connect();
   await listener.query("LISTEN sync_events_channel");
 
-  listener.on("notification", (msg) => {
+  listener.on("notification", async (msg) => {
     try {
       const data = JSON.parse(msg.payload);
       if (data.transport !== "dbtriggered") {
         return;
       }
 
-      const event = {
-        eventId: `${data.scenarioId}-${data.sequenceNo}`,
+      const event = await getSyncEventByScenarioAndSeq({
         scenarioId: data.scenarioId,
-        sequenceNo: data.sequenceNo,
-        transport: data.transport,
-        payload: data.payload,
-        payloadSizeBytes: data.payloadSizeBytes,
-        serverCreatedWallMs: new Date(data.createdAt).getTime()
-      };
+        sequenceNo: data.sequenceNo
+      });
+
+      if (!event) {
+        console.warn("DB-triggered event not found in sync_events:", data);
+        return;
+      }
+
       publish(event);
     } catch (err) {
       console.error("DB-triggered listener failed to process notification:", err);
