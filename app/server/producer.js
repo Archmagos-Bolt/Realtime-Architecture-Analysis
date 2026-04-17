@@ -49,9 +49,6 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
         serverCreatedWallMs: new Date(inserted.created_at).getTime()
       };
 
-    if (transport !== "dbtriggered") {
-      publish(event);
-    }
     } catch (err) {
       console.error("Producer insert/publish failed:", err);
     }

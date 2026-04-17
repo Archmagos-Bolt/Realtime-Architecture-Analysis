@@ -1,0 +1,10 @@
+{
+  "scenarioId": "baseline_sse_100clients_10rps_1kb",
+  "transport": "sse",
+  "clientCount": 100,
+  "eventRatePerSecond": 10,
+  "payloadSizeBytes": 1024,
+  "warmupMs": 5000,
+  "measurementMs": 30000,
+  "repetitions": 3
+}

@@ -25,9 +25,6 @@ export async function startDbTriggeredListener() {
   listener.on("notification", async (msg) => {
     try {
       const data = JSON.parse(msg.payload);
-      if (data.transport !== "dbtriggered") {
-        return;
-      }
 
       const event = await getSyncEventByScenarioAndSeq({
         scenarioId: data.scenarioId,

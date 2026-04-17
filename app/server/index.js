@@ -48,8 +48,6 @@ app.get("/health", (_req, res) => {
 
 
 app.get("/events/sse", async (req, res) => {
-  console.log("SSE client connected");
-
   const afterSeq = Number(req.query.afterSeq ?? 0);
   const scenarioId = String(req.query.scenarioId ?? "");
 
@@ -68,19 +66,6 @@ app.get("/events/sse", async (req, res) => {
   res.flushHeaders?.();
   res.write(": connected\n\n");
 
-  try {
-    const initialEvents = await getSyncEventsAfter({ scenarioId, afterSeq });
-
-    for (const event of initialEvents) {
-      if (event.transport === "sse") {
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
-      }
-    }
-  } catch (err) {
-    console.error("Initial SSE DB query failed:", err);
-    res.write(`event: error\ndata: ${JSON.stringify({ error: "Initial SSE load failed" })}\n\n`);
-  }
-
   const heartbeat = setInterval(() => {
     res.write(": heartbeat\n\n");
   }, 15000);
@@ -89,18 +74,15 @@ app.get("/events/sse", async (req, res) => {
   sseClients.add(client);
 
   req.on("close", () => {
-    console.log("SSE client disconnected");
     clearInterval(heartbeat);
     sseClients.delete(client);
   });
 });
 
 wss.on("connection", (socket) => {
-  console.log("WebSocket client connected");
   wsClients.add(socket);
 
   socket.on("close", () => {
-    console.log("WebSocket client disconnected");
     wsClients.delete(socket);
   });
 
@@ -110,11 +92,9 @@ wss.on("connection", (socket) => {
 });
 
 dbTriggeredWss.on("connection", (socket) => {
-  console.log("DB-triggered WebSocket client connected");
   dbTriggeredWsClients.add(socket);
 
   socket.on("close", () => {
-    console.log("DB-triggered WebSocket client disconnected");
     dbTriggeredWsClients.delete(socket);
   });
 
@@ -176,29 +156,60 @@ app.get("/events/longpoll", async (req, res) => {
     return res.status(400).json({ error: "scenarioId is required" });
   }
 
-  const deadline = Date.now() + LONG_POLL_TIMEOUT_MS;
+  try {
+    const events = await getSyncEventsAfter({ scenarioId, afterSeq });
 
-  async function tryRespond() {
+    if (events.length > 0) {
+      return res.json(events);
+    }
+
+    const poll = {
+      scenarioId,
+      afterSeq,
+      res,
+      timeoutHandle: setTimeout(() => {
+        pendingLongPolls.delete(poll);
+        res.json([]);
+      }, LONG_POLL_TIMEOUT_MS)
+    };
+
+    pendingLongPolls.add(poll);
+
+    req.on("close", () => {
+      clearTimeout(poll.timeoutHandle);
+      pendingLongPolls.delete(poll);
+    });
+  } catch (err) {
+    console.error("Long polling DB query failed:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+async function resolveLongPollsForEvent(event) {
+  const polls = [...pendingLongPolls].filter(
+    (poll) =>
+      poll.scenarioId === event.scenarioId &&
+      event.sequenceNo > poll.afterSeq
+  );
+
+  for (const poll of polls) {
     try {
-      const events = await getSyncEventsAfter({ scenarioId, afterSeq });
+      const events = await getSyncEventsAfter({
+        scenarioId: poll.scenarioId,
+        afterSeq: poll.afterSeq
+      });
 
-      if (events.length > 0) {
-        return res.json(events);
-      }
-
-      if (Date.now() >= deadline) {
-        return res.json([]);
-      }
-
-      setTimeout(tryRespond, 250);
+      clearTimeout(poll.timeoutHandle);
+      pendingLongPolls.delete(poll);
+      poll.res.json(events);
     } catch (err) {
-      console.error("Long polling DB query failed:", err);
-      return res.status(500).json({ error: "Internal server error" });
+      console.error("Failed to resolve long poll:", err);
+      clearTimeout(poll.timeoutHandle);
+      pendingLongPolls.delete(poll);
+      poll.res.status(500).json({ error: "Internal server error" });
     }
   }
-
-  tryRespond();
-});
+}
 
 subscribe((event) => {
   const data = `data: ${JSON.stringify(event)}\n\n`;
@@ -209,6 +220,9 @@ subscribe((event) => {
   }
     
   resolveLongPolls();
+  resolveLongPollsForEvent(event).catch((err) => {
+  console.error("Long poll resolution error:", err);
+  });
 
   if (event.transport === "dbtriggered") {
     const dbTriggeredWsData = JSON.stringify(event);
@@ -225,7 +239,7 @@ subscribe((event) => {
   }
 
   for (const client of sseClients) {
-    if (client.scenarioId === event.scenarioId && event.transport === "sse") {
+    if (event.transport === "sse" && client.scenarioId === event.scenarioId) {
       client.res.write(data);
     }
   }

@@ -5,10 +5,8 @@ function getScenarioIdFromQuery() {
 
 export function connectSSE({ onOpen, onEvent, onError }) {
   const scenarioId = getScenarioIdFromQuery();
-  let lastSeq = 0;
-
   const source = new EventSource(
-    `/events/sse?scenarioId=${encodeURIComponent(scenarioId)}&afterSeq=${ lastSeq }`
+    `/events/sse?scenarioId=${encodeURIComponent(scenarioId)}`
   );
 
   source.onopen = () => {
@@ -18,7 +16,6 @@ export function connectSSE({ onOpen, onEvent, onError }) {
   source.onmessage = (message) => {
     const event = JSON.parse(message.data);
     onEvent?.(event);
-    lastSeq = Math.max(lastSeq, event.sequenceNo);
   };
 
   source.onerror = (err) => {
