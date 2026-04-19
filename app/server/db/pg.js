@@ -1,8 +1,8 @@
 import pg from "pg";
 
-const { Client } = pg;
+const { Pool } = pg;
 
-export const db = new Client({
+export const db = new Pool({
   host: process.env.PGHOST || "localhost",
   port: Number(process.env.PGPORT || 5432),
   database: process.env.PGDATABASE || "postgres",
@@ -11,8 +11,9 @@ export const db = new Client({
 });
 
 export async function connectDb() {
-  await db.connect();
+  const result = await db.query("SELECT NOW() AS now");
   console.log("DB connected.");
+  console.log("DB test query OK:", result.rows[0].now);
 }
 
 export async function insertSyncEvent({
