@@ -1,9 +1,9 @@
 {
-  "scenarioId": "sse_6clients_10rps_1kb",
-  "transport": "sse",
+  "scenarioId": "polling_6clients_10rps_50kb",
+  "transport": "polling",
   "clientCount": 6,
   "eventRatePerSecond": 10,
-  "payloadSizeBytes": 1024,
+  "payloadSizeBytes": 51200,
   "warmupMs": 5000,
   "measurementMs": 30000,
   "repetitions": 3

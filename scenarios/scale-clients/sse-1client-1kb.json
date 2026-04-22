@@ -1,5 +1,5 @@
 {
-  "scenarioId": "baseline_sse_1client_10rps_1kb",
+  "scenarioId": "sse_1client_10rps_1kb",
   "transport": "sse",
   "clientCount": 1,
   "eventRatePerSecond": 10,
