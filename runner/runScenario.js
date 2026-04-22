@@ -220,6 +220,7 @@ async function main() {
           scenario,
           startedAt,
           finishedAt,
+          producerStats: stopResult.producerStats,
           overallSummary,
           perClientSummary: perClientResults.map((c) => ({
             clientId: c.clientId,

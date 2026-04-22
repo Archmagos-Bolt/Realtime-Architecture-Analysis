@@ -5,12 +5,39 @@ let sequenceNo = 0;
 let intervalHandle = null;
 let currentScenario = null;
 
+let startedWallMs = null;
+let attemptedTicks = 0;
+let successfulInserts = 0;
+let failedInserts = 0;
+
 function makePayload(sizeBytes) {
   return "x".repeat(sizeBytes);
 }
 
+function getProducerStats() {
+  if (!startedWallMs) {
+    return null;
+  }
+
+  const elapsedMs = Date.now() - startedWallMs;
+
+  return {
+    attemptedTicks,
+    successfulInserts,
+    failedInserts,
+    elapsedMs,
+    achievedRps: successfulInserts / (elapsedMs / 1000)
+  };
+}
+
 export function startProducer({ scenarioId, transport, eventRatePerSecond, payloadSizeBytes }) {
   stopProducer();
+
+  attemptedTicks = 0;
+  successfulInserts = 0;
+  failedInserts = 0;
+  startedWallMs = Date.now();
+
   sequenceNo = 0;
   currentScenario = {
     scenarioId,
@@ -21,17 +48,15 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
 
   const intervalMs = 1000 / eventRatePerSecond;
 
-  if (intervalHandle) {
-    clearInterval(intervalHandle);
-  }
+  const tick = async () => {
+    attemptedTicks += 1;
 
-  intervalHandle = setInterval(async () => {
     try {
       sequenceNo += 1;
 
       const payload = makePayload(payloadSizeBytes);
 
-      const inserted = await insertSyncEvent({
+      await insertSyncEvent({
         scenarioId,
         sequenceNo,
         transport,
@@ -39,38 +64,43 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
         payloadSizeBytes
       });
 
-      const event = {
-        eventId: `${inserted.scenario_id}-${inserted.sequence_no}`,
-        scenarioId: inserted.scenario_id,
-        sequenceNo: inserted.sequence_no,
-        transport,
-        payload: inserted.payload,
-        payloadSizeBytes: inserted.payload_size_bytes,
-        serverCreatedWallMs: new Date(inserted.created_at).getTime()
-      };
-
+      successfulInserts += 1;
     } catch (err) {
-      console.error("Producer insert/publish failed:", err);
+      failedInserts += 1;
+      console.error("Producer insert failed:", err);
     }
-  }, intervalMs);
-    return {
+  };
+
+  tick();
+  intervalHandle = setInterval(tick, intervalMs);
+
+  return {
     running: true,
     scenario: currentScenario
   };
 }
 
 export function stopProducer() {
+  const wasRunning = intervalHandle !== null;
+
   if (intervalHandle) {
     clearInterval(intervalHandle);
     intervalHandle = null;
   }
 
   const stoppedScenario = currentScenario;
+  const producerStats = wasRunning ? getProducerStats() : null;
+
   currentScenario = null;
+
+  if (producerStats) {
+    console.log("Producer stats:", producerStats);
+  }
 
   return {
     running: false,
-    previousScenario: stoppedScenario
+    previousScenario: stoppedScenario,
+    producerStats
   };
 }
 

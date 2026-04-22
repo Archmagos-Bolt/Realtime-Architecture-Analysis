@@ -51,17 +51,19 @@ async function main() {
     console.log(`- ${file}`);
   }
 
-  for (const scenarioFile of scenarioFiles) {
-    console.log(`\n=== Running ${scenarioFile} ===\n`);
-    await runNodeCommand(["runner/runScenario.js", scenarioFile]);
-  }
+  const repetitionsArg = process.argv.find((arg) => arg.startsWith("--repetitions="));
+  const repetitions = repetitionsArg
+    ? Number(repetitionsArg.replace("--repetitions=", ""))
+    : 3;
 
-  console.log("\nBatch complete.");
   for (const scenarioFile of scenarioFiles) {
-    console.log(`\n=== Running ${scenarioFile} ===\n`);
-    await runNodeCommand(["runner/runScenario.js", scenarioFile]);
-    await sleep(1500);
+    for (let repetitionIndex = 1; repetitionIndex <= repetitions; repetitionIndex += 1) {
+      console.log(`\n=== Running ${scenarioFile} repetition ${repetitionIndex}/${repetitions} ===\n`);
+      await runNodeCommand(["runner/runScenario.js", scenarioFile]);
+      await sleep(1500);
+    }
   }
+  console.log("\nBatch complete.");
 }
 
 main().catch((err) => {
