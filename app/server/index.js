@@ -25,18 +25,6 @@ export function clearEventBuffer() {
   eventBuffer.length = 0;
 }
 
-function resolveLongPolls() {
-  for (const poll of [...pendingLongPolls]) {
-    const events = eventBuffer.filter((event) => event.sequenceNo > poll.afterSeq);
-
-    if (events.length > 0) {
-      clearTimeout(poll.timeoutHandle);
-      pendingLongPolls.delete(poll);
-      poll.res.json(events);
-    }
-  }
-}
-
 app.use(express.json());
 app.use(express.static("app/client"));
 app.use("/control", controlRoutes);
@@ -218,8 +206,6 @@ subscribe((event) => {
   if (eventBuffer.length > MAX_BUFFER_SIZE) {
     eventBuffer.shift();
   }
-    
-  resolveLongPolls();
   resolveLongPollsForEvent(event).catch((err) => {
   console.error("Long poll resolution error:", err);
   });
