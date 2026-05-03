@@ -5,6 +5,5 @@
   "eventRatePerSecond": 10,
   "payloadSizeBytes": 51200,
   "warmupMs": 5000,
-  "measurementMs": 30000,
-  "repetitions": 3
+  "measurementMs": 30000
 }

@@ -1,7 +1,6 @@
 import { connectSSE } from "./transports/sseClient.js";
 import { connectWebSocket } from "./transports/websocketClient.js";
 import { connectPolling } from "./transports/pollingClient.js";
-import { connectDbTriggered } from "./transports/dbTriggeredClient.js";
 import { connectLongPolling } from "./transports/longPollingClient.js";
 const statusEl = document.getElementById("status");
 const metrics = [];
@@ -165,8 +164,6 @@ function connectTransport(transport) {
       return connectWebSocket(handlers);
     case "polling":
       return connectPolling(handlers);
-    case "dbtriggered":
-      return connectDbTriggered(handlers);
     case "longpolling":
       return connectLongPolling(handlers);
     default:

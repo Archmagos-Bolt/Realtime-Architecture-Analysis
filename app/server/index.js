@@ -15,9 +15,6 @@ const MAX_BUFFER_SIZE = 10000;
 
 const sseClients = new Set();
 
-const dbTriggeredWss = new WebSocketServer({ noServer: true });
-const dbTriggeredWsClients = new Set();
-
 const pendingLongPolls = new Set();
 const LONG_POLL_TIMEOUT_MS = 25000;
 
@@ -79,17 +76,6 @@ wss.on("connection", (socket) => {
   });
 });
 
-dbTriggeredWss.on("connection", (socket) => {
-  dbTriggeredWsClients.add(socket);
-
-  socket.on("close", () => {
-    dbTriggeredWsClients.delete(socket);
-  });
-
-  socket.on("error", (err) => {
-    console.error("DB-triggered WebSocket client error:", err);
-  });
-});
 
 server.on("upgrade", (req, socket, head) => {
   const { url } = req;
@@ -97,13 +83,6 @@ server.on("upgrade", (req, socket, head) => {
   if (url === "/events/ws") {
     wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit("connection", ws, req);
-    });
-    return;
-  }
-
-  if (url === "/events/dbtriggered") {
-    dbTriggeredWss.handleUpgrade(req, socket, head, (ws) => {
-      dbTriggeredWss.emit("connection", ws, req);
     });
     return;
   }
@@ -210,27 +189,13 @@ subscribe((event) => {
   console.error("Long poll resolution error:", err);
   });
 
-  if (event.transport === "dbtriggered") {
-    const dbTriggeredWsData = JSON.stringify(event);
-
-    for (const socket of dbTriggeredWsClients) {
-      try {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(dbTriggeredWsData);
-        }
-      } catch (err) {
-        console.error("Failed to send DB-triggered WebSocket event:", err);
-      }
-    }
-  }
-
   for (const client of sseClients) {
     if (event.transport === "sse" && client.scenarioId === event.scenarioId) {
       client.res.write(data);
     }
   }
 
-  if (event.transport !== "dbtriggered") {
+  if (event.transport === "websocket") {
     const wsData = JSON.stringify(event);
 
     for (const socket of wsClients) {
