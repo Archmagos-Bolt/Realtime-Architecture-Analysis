@@ -1,7 +1,7 @@
 {
-  "scenarioId": "websocket_6clients_10rps_50kb",
-  "transport": "websocket",
-  "clientCount": 6,
+  "scenarioId": "longpolling_10clients_10rps_50kb",
+  "transport": "longpolling",
+  "clientCount": 10,
   "eventRatePerSecond": 10,
   "payloadSizeBytes": 51200,
   "warmupMs": 5000,
