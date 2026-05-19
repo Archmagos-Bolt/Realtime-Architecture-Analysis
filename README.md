@@ -44,7 +44,7 @@ Run one scenario by providing the path to a scenario JSON file:
 npm run run:scenario path/to/scenario.json
 
 Example: 
-npm run run:scenario scenarios/websocket_10clients_10rps_1kb.json
+npm run run:scenario scenarios/websocket_10clients_10eps_1kb.json
 
 ## Run a batch of scenarios from a folder
 

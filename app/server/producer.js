@@ -26,7 +26,7 @@ function getProducerStats() {
     successfulInserts,
     failedInserts,
     elapsedMs,
-    achievedRps: successfulInserts / (elapsedMs / 1000)
+    achievedEps: successfulInserts / (elapsedMs / 1000)
   };
 }
 

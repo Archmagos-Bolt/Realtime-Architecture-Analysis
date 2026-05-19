@@ -1,5 +1,5 @@
 {
-  "scenarioId": "longpolling_10clients_10rps_50kb",
+  "scenarioId": "longpolling_10clients_10eps_50kb",
   "transport": "longpolling",
   "clientCount": 10,
   "eventRatePerSecond": 10,

@@ -1,5 +1,5 @@
 {
-  "scenarioId": "sse_50clients_10rps_50kb",
+  "scenarioId": "sse_50clients_10eps_50kb",
   "transport": "sse",
   "clientCount": 50,
   "eventRatePerSecond": 10,

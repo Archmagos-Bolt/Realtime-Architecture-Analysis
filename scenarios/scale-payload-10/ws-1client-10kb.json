@@ -1,5 +1,5 @@
 {
-  "scenarioId": "websocket_1client_10rps_10kb",
+  "scenarioId": "websocket_1client_10eps_10kb",
   "transport": "websocket",
   "clientCount": 1,
   "eventRatePerSecond": 10,
