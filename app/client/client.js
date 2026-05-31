@@ -1,3 +1,5 @@
+// Klienta puses testa skripts.
+// Pieslēdzas izvēlētajai datu piegādes pieejai, saņem notikumus un reģistrē datubāzes–klienta E2E aizkavi.
 import { connectSSE } from "./transports/sseClient.js";
 import { connectWebSocket } from "./transports/websocketClient.js";
 import { connectPolling } from "./transports/pollingClient.js";
@@ -5,6 +7,8 @@ import { connectLongPolling } from "./transports/longPollingClient.js";
 const statusEl = document.getElementById("status");
 const metrics = [];
 
+// Testa stāvoklis tiek publicēts window objektā,
+// lai Playwright izpildītājs varētu pārbaudīt klienta pieslēguma statusu.
 const testState = {
   connected: false,
   transport: null,
@@ -19,6 +23,8 @@ function setStatus(text) {
   }
 }
 
+// Nosaka klienta puses saņemšanas brīdi milisekundēs,
+// izmantojot pārlūka laika atskaites punktu un performance.now().
 function getClientReceiveWallMs() {
   return performance.timeOrigin + performance.now();
 }
@@ -39,6 +45,8 @@ function percentile(sortedValues, p) {
   return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
 }
 
+// Reģistrē saņemtu notikumu un aprēķina E2E aizkavi kā starpību starp
+// datubāzes ieraksta izveides laiku un klienta saņemšanas brīdi.
 function recordEvent(event) {
   const clientReceivedWallMs = getClientReceiveWallMs();
   const rawE2eMs = clientReceivedWallMs - event.serverCreatedWallMs;
@@ -61,6 +69,8 @@ function recordEvent(event) {
   return metric;
 }
 
+// Playwright testu izpildītājs izmanto šo objektu, lai pēc scenārija beigām
+// nolasītu klienta uzkrātos mērījumus un to statistisko kopsavilkumu.
 window.testMetrics = {
   getAll: () => metrics,
   clear: () => {
@@ -128,6 +138,8 @@ function getClientIdFromQuery() {
   return params.get("clientId") || "client-1";
 }
 
+// Izvēlas attiecīgo klienta puses datu piegādes realizāciju pēc scenārijā
+// norādītās transport vērtības.
 function connectTransport(transport) {
   const handlers = {
     onOpen: () => {

@@ -1,19 +1,29 @@
+// Testa notikumu producenta modulis.
+// Ģenerē scenārija notikumus un ievieto tos sync_events tabulā ar noteiktu intensitāti un ziņas izmēru.
 import { publish } from "./eventBus.js";
 import { insertSyncEvent } from "./db/pg.js";
 
+// Producenta stāvoklis tiek glabāts moduļa līmenī, jo vienlaikus tiek
+// izpildīts viens aktīvs testa scenārijs.
 let sequenceNo = 0;
 let intervalHandle = null;
 let currentScenario = null;
 
+// Šie skaitītāji tiek izmantoti, lai pēc scenārija izpildes saglabātu
+// producenta darbības statistiku.
 let startedWallMs = null;
 let attemptedTicks = 0;
 let successfulInserts = 0;
 let failedInserts = 0;
 
+// Izveido noteikta izmēra testa ziņas saturu, lai scenārijos varētu
+// salīdzināt dažādu payload izmēru ietekmi.
 function makePayload(sizeBytes) {
   return "x".repeat(sizeBytes);
 }
 
+// Apkopo producenta izpildes statistiku, tostarp veiksmīgo ievietošanas
+// gadījumu skaitu un faktiski sasniegto notikumu intensitāti.
 function getProducerStats() {
   if (!startedWallMs) {
     return null;
@@ -30,6 +40,8 @@ function getProducerStats() {
   };
 }
 
+// Sāk jauna scenārija notikumu ģenerēšanu, atiestatot iepriekšējo stāvokli
+// un regulāri ievietojot notikumus datubāzē.
 export function startProducer({ scenarioId, transport, eventRatePerSecond, payloadSizeBytes }) {
   stopProducer();
 
@@ -48,6 +60,7 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
 
   const intervalMs = 1000 / eventRatePerSecond;
 
+  // Katrs tick izveido nākamo scenārija notikumu un ievieto to datubāzē.
   const tick = async () => {
     attemptedTicks += 1;
 
@@ -80,6 +93,7 @@ export function startProducer({ scenarioId, transport, eventRatePerSecond, paylo
   };
 }
 
+// Aptur aktīvo producentu un atgriež scenārija izpildes statistiku.
 export function stopProducer() {
   const wasRunning = intervalHandle !== null;
 
@@ -104,6 +118,7 @@ export function stopProducer() {
   };
 }
 
+// Atgriež producenta pašreizējo stāvokli kontroles galapunktu vajadzībām.
 export function getProducerState() {
   return {
     running: intervalHandle !== null,

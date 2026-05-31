@@ -1,3 +1,6 @@
+// Viena testa scenārija izpildes skripts.
+// Nolasa scenārija konfigurāciju, palaiž lokālās servera instances un pārlūkprogrammas klientus,
+// vada mērījuma izpildi un saglabā iegūtos rezultātus.
 import fs, { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { chromium } from "playwright";
@@ -25,6 +28,7 @@ function percentile(sortedValues, p) {
   return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight;
 }
 
+// Apkopo E2E aizkaves mērījumus statistiskos rādītājos, kas vēlāk tiek izmantoti rezultātu analīzē.
 function summarizeMetrics(metrics) {
   const values = metrics.map((m) => m.e2eMs);
 
@@ -70,9 +74,11 @@ async function main() {
   await clearSyncEvents();
   console.log("sync_events cleared.");
 
+  // Scenārija konfigurācija nosaka testējamo pieeju, klientu skaitu, ziņas izmēru, notikumu intensitāti un mērījuma ilgumu.
   const scenario = JSON.parse(await fs.readFile(scenarioPath, "utf-8"));
   console.log("Loaded scenario:", scenario);
 
+  // Klienti tiek sadalīti starp vairākām lokālām izcelsmēm, lai mazinātu vienas izcelsmes savienojumu ierobežojumu ietekmi.
   const startPort = 3000;
   const originCount = getRequiredOriginCount(scenario.clientCount);
   const baseUrls = buildBaseUrls({ startPort, count: originCount });
@@ -80,6 +86,7 @@ async function main() {
 
   console.log(`Using ${originCount} origin(s):`, baseUrls);
 
+  // Palaiž nepieciešamās lokālās servera instances, katru savā portā.
   const serverChildren = startOrigins({ startPort, count: originCount });
   await sleep(3000);
 
@@ -93,11 +100,13 @@ async function main() {
   await mkdir(rawDir, { recursive: true });
   await mkdir(summaryDir, { recursive: true });
 
+  // Playwright palaiž Chromium vidi, kurā tiek izveidoti automatizētie testa klienti.
   browser = await chromium.launch({ headless: !headed });
   const context = await browser.newContext();
 
   const pages = [];
   try {
+    // Katram klientam tiek izveidota atsevišķa pārlūka lapa ar scenārija, klienta un izvēlētās datu piegādes pieejas parametriem.
     console.log(`Launching ${scenario.clientCount} client pages.`);
     for (let i = 1; i <= scenario.clientCount; i += 1) {
       const clientId = `client-${i}`;
@@ -115,17 +124,20 @@ async function main() {
     }
     console.log("All clients connected.");
 
+    // Pirms aktīvā mērījuma sākuma tiek notīrīti savienojuma izveides laikā iespējamie uzkrātie klientu mērījumi.
     for (const { page } of pages) {
       await page.evaluate(() => {
         window.testMetrics.clear();
       });
     }
 
+    // Iesildīšanās periods ļauj klientu savienojumiem nostabilizēties pirms aktīvā mērījuma sākuma.
     if (scenario.warmupMs && scenario.warmupMs > 0) {
       console.log(`Stabilizing clients for ${scenario.warmupMs} ms.`);
       await sleep(scenario.warmupMs);
     }
 
+    // Ar kontroles galapunktu tiek palaists producents, kas ievieto notikumus datubāzē atbilstoši scenārija parametriem.
     console.log("Starting measured run.");
     const startResponse = await fetch(`${controlBaseUrl}/control/start`, {
       method: "POST",
@@ -149,8 +161,10 @@ async function main() {
     const startResult = await startResponse.json();
     console.log("Scenario started:", startResult);
 
+    // Aktīvā mērījuma laikā producents ģenerē notikumus, bet klienti reģistrē to saņemšanas laikus.
     await sleep(scenario.measurementMs);
 
+    // Pēc mērījuma perioda producents tiek apturēts, lai saglabātu tā izpildes statistiku.
     const stopResponse = await fetch(`${controlBaseUrl}/control/stop`, {
       method: "POST"
     });
@@ -165,6 +179,7 @@ async function main() {
     const finishedAt = new Date().toLocaleString();
 
     const perClientResults = [];
+    // Pēc scenārija beigām no katras klienta lapas tiek nolasīti klienta pusē uzkrātie E2E aizkaves mērījumi.
     console.log("Collecting metrics from clients.");
     for (const { page, clientId } of pages) {
       const metrics = await page.evaluate(() => window.testMetrics.getAll());
@@ -178,6 +193,7 @@ async function main() {
     const allMetrics = perClientResults.flatMap((c) => c.metrics);
     const overallSummary = summarizeMetrics(allMetrics);
 
+    // Katram scenārija izpildes gadījumam tiek saglabāti metadati, detalizētie mērījumi un statistiskais kopsavilkums.
     const runMetadataPath = path.join(runDir, `${scenario.scenarioId}-${safeTimestamp}.json`);
     const rawResultsPath = path.join(rawDir, `${scenario.scenarioId}-${safeTimestamp}.json`);
     const summaryPath = path.join(summaryDir, `${scenario.scenarioId}-${safeTimestamp}.json`);
@@ -238,6 +254,7 @@ async function main() {
     console.log(`Summary saved to ${summaryPath}`);
 
   }
+  // Pēc scenārija izpildes tiek aizvērta pārlūkprogramma, datubāzes savienojums un palaistās lokālās servera instances.
   finally {
     if (browser) {
       await browser.close().catch(() => {});

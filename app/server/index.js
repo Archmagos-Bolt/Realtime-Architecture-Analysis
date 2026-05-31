@@ -1,3 +1,6 @@
+// Galvenā testa servera konfigurācija.
+// Šajā failā tiek realizēti HTTP, SSE un WebSocket galapunkti,
+// kā arī notikumu izplatīšana klientiem pēc datubāzes paziņojuma saņemšanas.
 import express from "express";
 import http from "http";
 import controlRoutes from "./routes/control.js";
@@ -9,6 +12,8 @@ import { startDbTriggeredListener } from "./db/dbTriggeredListener.js";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
+// Aktīvo klientu un gaidošo pieprasījumu kolekcijas tiek glabātas atmiņā,
+// kas ir pietiekami šī testa scenārija vajadzībām.
 const wsClients = new Set();
 const eventBuffer = [];
 const MAX_BUFFER_SIZE = 10000;
@@ -18,10 +23,13 @@ const sseClients = new Set();
 const pendingLongPolls = new Set();
 const LONG_POLL_TIMEOUT_MS = 25000;
 
+// Šī funkcija tiek izmantota testu laikā, lai notīrītu notikumu buferi
+// un izvairītos no nevēlamu notikumu ietekmes uz testu rezultātiem.
 export function clearEventBuffer() {
   eventBuffer.length = 0;
 }
-
+// Serveris apkalpo klienta puses testēšanas lapu, JSON pieprasījumus
+// un kontroles maršrutus, kurus izmanto Playwright testa izpildītājs.
 app.use(express.json());
 app.use(express.static("app/client"));
 app.use("/control", controlRoutes);
@@ -31,7 +39,8 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-
+// SSE galapunkts uztur atvērtu savienojumu ar klientu,
+// lai jauni scenārija notikumi pēc to saņemšanas serverī varētu tikt nosūtīti bez atkārtota klienta pieprasījuma.
 app.get("/events/sse", async (req, res) => {
   const afterSeq = Number(req.query.afterSeq ?? 0);
   const scenarioId = String(req.query.scenarioId ?? "");
@@ -64,6 +73,7 @@ app.get("/events/sse", async (req, res) => {
   });
 });
 
+// Saglabā aktīvos WebSocket savienojumus, lai pēc datubāzes notikuma saņemšanas serveris varētu nosūtīt attiecīgo ziņojumu WebSocket klientiem.
 wss.on("connection", (socket) => {
   wsClients.add(socket);
 
@@ -76,7 +86,8 @@ wss.on("connection", (socket) => {
   });
 });
 
-
+// WebSocket savienojums sākotnēji tiek ierosināts kā HTTP pieprasījums,
+// kas šeit tiek pārslēgts uz WebSocket protokolu tikai /events/ws galapunktam.
 server.on("upgrade", (req, socket, head) => {
   const { url } = req;
 
@@ -90,6 +101,8 @@ server.on("upgrade", (req, socket, head) => {
   socket.destroy();
 });
 
+// Parastais HTTP galapunkts periodiskai aptaujai, kur klients periodiski pieprasa jaunus notikumus.
+// Ja nav jaunu notikumu, atbildē tiek nosūtīts tukšs saraksts.
 app.get("/events/polling", async (req, res) => {
   const afterSeq = Number(req.query.afterSeq ?? 0);
   const scenarioId = String(req.query.scenarioId ?? "");
@@ -111,6 +124,8 @@ app.get("/events/polling", async (req, res) => {
   }
 });
 
+// Ilglaicīgās aptaujas galapunkts, kur klients veic pieprasījumu un serveris tur šo pieprasījumu atvērtu,
+// līdz parādās jauni notikumi vai tiek sasniegts laika limits.
 app.get("/events/longpoll", async (req, res) => {
   const afterSeq = Number(req.query.afterSeq ?? 0);
   const scenarioId = String(req.query.scenarioId ?? "");
@@ -177,7 +192,8 @@ async function resolveLongPollsForEvent(event) {
     }
   }
 }
-
+// Kad tiek saņemts jauns notikums no datubāzes paziņojuma,
+// tas tiek pievienots buferim un izplatīts visiem atbilstošajiem SSE un WebSocket klientiem.
 subscribe((event) => {
   const data = `data: ${JSON.stringify(event)}\n\n`;
   eventBuffer.push(event);
@@ -186,7 +202,7 @@ subscribe((event) => {
     eventBuffer.shift();
   }
   resolveLongPollsForEvent(event).catch((err) => {
-  console.error("Long poll resolution error:", err);
+    console.error("Long poll resolution error:", err);
   });
 
   for (const client of sseClients) {
@@ -195,6 +211,7 @@ subscribe((event) => {
     }
   }
 
+  // WebSocket scenārijā notikums tiek serializēts un secīgi nosūtīts visiem aktīvajiem WebSocket klientiem.
   if (event.transport === "websocket") {
     const wsData = JSON.stringify(event);
 
@@ -211,6 +228,8 @@ subscribe((event) => {
 });
 
 const PORT = Number(process.env.PORT || 3000);
+// Pēc servera instances palaišanas tiek inicializēts datubāzes savienojums un LISTEN/NOTIFY klausītājs,
+// kas nodrošina datubāzes notikumu saņemšanu.
 server.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
   try {

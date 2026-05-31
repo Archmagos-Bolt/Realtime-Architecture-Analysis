@@ -1,12 +1,17 @@
+// Grupē atsevišķo testa izpilžu kopsavilkumus pēc scenārija identifikatora.
+// Skripts apvieno atkārtojumus un izveido tabulas, kas izmantotas salīdzinošajai rezultātu analīzei.
 import fs, { mkdir, writeFile } from "fs/promises";
 import path from "path";
 
+// Nolasa iepriekš sagatavoto kopsavilkuma tabulu, kur katra rinda atbilst
+// vienai scenārija izpildes reizei.
 async function readSummaryTable() {
   const inputPath = "results/aggregated/summary-table.json";
   const text = await fs.readFile(inputPath, "utf-8");
   return JSON.parse(text);
 }
 
+// Noapaļo skaitliskās vērtības, lai rezultātu tabulas būtu pārskatāmākas.
 function roundNumber(value, decimals = 3) {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return value;
@@ -15,6 +20,7 @@ function roundNumber(value, decimals = 3) {
   return Number(value.toFixed(decimals));
 }
 
+// Aprēķina vidējo vērtību vienam rādītājam starp viena scenārija atkārtojumiem.
 function average(values) {
   if (values.length === 0) {
     return null;
@@ -23,6 +29,7 @@ function average(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+// Sagatavo vērtību drošai ierakstīšanai CSV formātā.
 function csvEscape(value) {
   const str = String(value ?? "");
   if (str.includes(",") || str.includes('"') || str.includes("\n")) {
@@ -33,6 +40,8 @@ function csvEscape(value) {
 
 async function main() {
   const rows = await readSummaryTable();
+  // Scenāriju izpildes tiek grupētas pēc scenarioId, lai apvienotu viena un
+  // tā paša scenārija atkārtojumus.
   const grouped = new Map();
 
   for (const row of rows) {
@@ -45,6 +54,7 @@ async function main() {
     grouped.get(key).push(row);
   }
 
+  // Katram scenārijam tiek aprēķinātas atkārtojumu vidējās statistiskās vērtības.
   const groupedRows = [];
 
   for (const [scenarioId, group] of grouped.entries()) {
@@ -72,8 +82,12 @@ async function main() {
     });
   }
 
+  // Sakārto rezultātus pēc scenārija identifikatora, lai izvades tabulas būtu
+  // konsekventas un vieglāk salīdzināmas.
   groupedRows.sort((a, b) => a.scenarioId.localeCompare(b.scenarioId));
 
+  // Grupētie rezultāti tiek saglabāti gan JSON formātā turpmākai apstrādei,
+  // gan CSV formātā ērtai ievietošanai izklājlapās.
   const outputDir = "results/aggregated";
   const outputJsonPath = path.join(outputDir, "grouped-summary-table.json");
   const outputCsvPath = path.join(outputDir, "grouped-summary-table.csv");
@@ -81,6 +95,7 @@ async function main() {
   await mkdir(outputDir, { recursive: true });
   await writeFile(outputJsonPath, JSON.stringify(groupedRows, null, 2));
 
+  // CSV kolonnu secība atbilst grupētās kopsavilkuma tabulas struktūrai.
   const headers = [
     "scenarioId",
     "transport",
